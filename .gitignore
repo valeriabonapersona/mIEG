@@ -1,0 +1,7 @@
+# exclude compiled binaries and external models
+/bin
+
+# exclude R stuff
+.Rproj.user
+.DS_Store
+.Rhistory
