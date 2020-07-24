@@ -21,6 +21,9 @@ list_cran_packages <- c(
 new_packages <- list_cran_packages[!(list_cran_packages %in% installed.packages()[,"Package"])]
 if(length(new_packages)) install.packages(new_packages)
 
+## from Github
+if(!require(osfr)) remotes::install_github("centerforopenscience/osfr")
+
 
 # Packrat for dependenies ------------------------------------------------
 #packrat::init("src/")
