@@ -13,8 +13,10 @@ rm(list = ls())
 # Install packages
 ## from CRAN
 list_cran_packages <- c(
-  "tidyverse", "readxl", # data handling
-  "remotes" # download from github
+  "tidyverse", "readxl", "stringr", # data handling -> should all be in tidyverse but dont work
+  "remotes", # download from github
+  "metafor", # estimates and meta-analysis
+  "BSDA" # t-test from summary statistics
 )
 
 
