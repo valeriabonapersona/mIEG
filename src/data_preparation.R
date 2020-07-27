@@ -2,6 +2,9 @@
 
 ## project: mIEG
 
+## Input: excel data from osf (or downloaded)
+## Output: preprocessed data in data/processed/ folder
+
 ## Author: Valeria Bonapersona & Heike Schuler
 ## contact: v.bonapersona-2 (at) umcutrecht.nl
 
