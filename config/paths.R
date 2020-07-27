@@ -6,3 +6,7 @@
 ## contact: v.bonapersona-2 (at) umcutrecht.nl
 
 
+# data --------------------------------------------------------------------
+
+raw <- "data/raw/"
+
