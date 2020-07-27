@@ -10,3 +10,7 @@
 rm(list = ls())
 
 source("src/dependencies.R")
+source("src/general_functions.R")
+source("config/paths.R")
+
+
