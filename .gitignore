@@ -9,3 +9,12 @@
 # data files
 .RDS
 .xlsx
+
+# data folders
+# exclude everything
+data/raw/*
+data/processed/*
+
+# exception to the rule
+!data/raw/.gitkeep 
+!data/processed/.gitkeep
