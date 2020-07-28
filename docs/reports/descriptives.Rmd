@@ -120,13 +120,13 @@ df %>%
 ### Analyses: CHECK WITH HEIKE
 From the frequency exploration above, the following variables have been selected for  *moderators*: 
 
-- presence of multiple hits (**hit2**)
 - brain area (**areaLevel2**)
 - baseline or after acute stress (**tAcuteStressor**)
 
 
 The following variables have been selected for *subgroup analysis*: 
 
+- presence of multiple hits (**hit2**)
 - species (**species**)
 
 
