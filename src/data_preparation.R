@@ -70,7 +70,8 @@ df_clean <- df %>%
   mutate(
     
     # make necessary vars numeric
-    across(c(varC, nC, avgC, varE, nE, avgE, cohensD), as.numeric), # CANCEL WARNING MESSAGE NAs!
+    across(c(varC, nC, avgC, varE, nE, avgE, 
+             cohensD, tWaitPeriod), as.numeric), # CANCEL WARNING MESSAGE NAs!
     
     # authors for citation
     authors = gsub("^(.*?),.*", "\\1 et al.", authors),
