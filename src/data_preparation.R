@@ -129,7 +129,7 @@ df_meta <-
   df_clean %>%
   filter(
     sex %in% c("M", "F"),
-    iegName == "cFOS"
+    iegName == "cFos"
   ) %>%
   ungroup() %>% droplevels()
 
