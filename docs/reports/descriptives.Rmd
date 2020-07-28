@@ -1,5 +1,5 @@
 ---
-title: "Descript"
+title: "Report on exploration of data preparation"
 author: "Valeria"
 date: "7/27/2020"
 ---
@@ -8,15 +8,142 @@ date: "7/27/2020"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Descriptives
-The data was downloaded as excel file *"data/raw/outcomes.xlsx"* from osf. Then, this was processed in *"src/data_preparation.R"*. The output *"data/processed/data_onefile.R"* is here analyzed for descriptives. 
+```{r data, include=FALSE}
+source("src/utilities.R")
+df <- readRDS(paste0(temp, "df_report_datapreparation.RDS"))
+df$nTot <- df$nC + df$nE
+```
+
+**TO DO**: 
+
+- remove experiment with pooled sex.
+- filter meta-analysis for cFos
+- Valeria: 
+    1. contact publication `r unique(df[is.na(df$yi),]$authors)` for summary statistics
+    2. contact publication `r unique(df[df$sex == "NS",]$authors)` for sex of the animals
+
+
+# Descriptives
+The data was downloaded as excel file *"data/raw/outcomes.xlsx"* from osf. Then, this was processed in *"src/data_preparation.R"*. The output *"data/temp/df_report_datapreparation.R"* is here analyzed for descriptives. 
 
 **ATTENTION**: the results have been blinded. 
 
-```{r data, include=FALSE}
-source("src/utilities.R")
-df <- readRDS(paste0(processed, "data_onefile.RDS"))
+## Papers, experiments, animals
+`r length(unique(df$ID))` publications met our pre-specified inclusion criteria: these used >`r sum(df$nTot, na.rm = TRUE)` animals (rats = `r round(sum(df[df$species == "rat",]$nTot, na.rm = TRUE)/sum(df$nTot, na.rm = TRUE) * 100, 2)`%) from `r length(unique(df$exp_ID))` experiments. `r sum(is.na(df$yi))` effect sizes are missing. Missing variances have been imputed by adding the **median** (Heike did mean). These come all from the same publication (`r unique(df[is.na(df$yi),]$authors)`). 
+
+
+`r length(unique(df[df$sex == "F",]$exp_ID))` experiments used females, `r length(unique(df[df$sex == "M",]$exp_ID))` experiments used males. `r length(unique(df[df$sex == "P",]$exp_ID))` had pulled sex and in `r length(unique(df[df$sex == "NS",]$exp_ID))` experiment sex was not specified. The experiment in which sex was not specified will be removed for the analysis. Males and females are analyzed separately as we interpret them as two different biological systems. Studies with pooled sexes will be contextualized at a systematic review level.
+
+
+The distribution across outcomes of the effect sizes extracted, can be investigated here below. cFos was the most studied ieg (`r round(nrow(df[df$iegName == "cFos",]) / nrow(df) * 100, 2)`% of extracted effect sizes). Only cFos will be meta-analyzed, whereas the other IEGs will be contextualized with systematic review. 
+
+```{r ieg type, echo=FALSE, message=FALSE, warning=FALSE}
+
+df %>%
+  group_by(iegName) %>%
+  summarize(obvs = length(exp_ID),
+            exp = length(unique(exp_ID)),
+            publ = length(unique(ID)))
+
 ```
 
-## Papers, experiments, animals
-`r length(unique(df$ID))` publications met our pre-specified inclusion criteria: these used >`r sum(df$nC, na.rm = TRUE) + sum(df$nE, na.rm = TRUE)` animals from `r length(unique(paste(df$ID, df$nest)))` experiments. 
+
+## cFos: meta-analysis choices
+The "data_onefile.R" from the "data_preparation.R" is filtered for sex (NS excluded) and ieg (only cFos). 
+
+```{r cfos_filtering, message=FALSE, warning=FALSE, include=FALSE}
+df <- df %>%
+  filter(
+    !sex %in% c("NS", "P"),
+    iegName == "cFos") %>%
+  ungroup() %>% 
+  droplevels()
+  
+
+```
+
+### Choosing moderators for meta-analysis based on frequency
+Important variables to consider: 
+
+- sex
+  - NS excluded, P systematic review, M and F separately
+- species
+  - F: exploratory subgroup analysis
+  - M: sensitivity analysis on rats
+- model (and timing of model)
+  - sensitivity analysis on MS
+    - females have only MS
+    - M: sensitivity on MS
+- second hit
+  - moderator or subgroup
+- acute stressor (presence, time, novelty, refractory period)
+  - presence: moderator
+  - type: needs to be subgrouped
+  - novelty: exploratory subgroup analysis
+  - time: exploratory meta-regression in males
+  
+- outcome (type and technique)
+  - type:
+    - F: sensitivity on proteins
+    - M: subgroup
+- brain area
+  - moderator
+  - F: PFC only from 2 independent publications >> *exclude?*
+
+
+```{r cfos_frequency_var, echo=FALSE, message=FALSE, warning=FALSE}
+# create a quoture to forloop
+my_var <- c(quo(species), quo(model), quo(hit2), 
+            quo(tAcuteStressor), quo(tStressorType), quo(tNovel),
+            quo(outMeasure), quo(outTechnique),
+            quo(areaLevel2))
+
+for (i in seq_along(my_var)) {
+  df %>% 
+    group_by(sex, !!my_var[[i]]) %>% # Unquote with !!
+    summarize(obvs = length(exp_ID), 
+              exp = length(unique(exp_ID)), 
+              publ = length(unique(ID))) %>%
+    print()
+}
+
+df %>%
+  ggplot(aes(tWaitPeriod)) + 
+  facet_grid(~sex) + 
+  geom_histogram() + 
+  theme_classic()
+
+
+```
+
+### Analyses: CHECK WITH HEIKE
+From the frequency exploration above, the following variables have been selected for  *moderators*: 
+
+- presence of multiple hits (**hit2**)
+- brain area (**areaLevel2**)
+- baseline or after acute stress (**tAcuteStressor**)
+
+
+The following variables have been selected for *subgroup analysis*: 
+
+- species (**species**)
+
+
+The following variables will be used for *exploratory subgroup analysis*:
+
+- acute stressor 
+  - type (grouped)
+  - novelty
+  - time
+- protein vs RNA (in males)
+
+
+*Sensitivity analysis* will be conducted on:
+
+- blinded and randomized papers
+- model (MS)
+
+
+*Other choices*: 
+
+- PFC papers in females will be included in the overall analysis, but no specific PFC analysis will be conducted.
