@@ -1,0 +1,22 @@
+---
+title: "Descript"
+author: "Valeria"
+date: "7/27/2020"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Descriptives
+The data was downloaded as excel file *"data/raw/outcomes.xlsx"* from osf. Then, this was processed in *"src/data_preparation.R"*. The output *"data/processed/data_onefile.R"* is here analyzed for descriptives. 
+
+**ATTENTION**: the results have been blinded. 
+
+```{r data, include=FALSE}
+source("src/utilities.R")
+df <- readRDS(paste0(processed, "data_onefile.RDS"))
+```
+
+## Papers, experiments, animals
+`r length(unique(df$ID))` publications met our pre-specified inclusion criteria: these used >`r sum(df$nC, na.rm = TRUE) + sum(df$nE, na.rm = TRUE)` animals from `r length(unique(paste(df$ID, df$nest)))` experiments. 
