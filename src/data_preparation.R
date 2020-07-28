@@ -62,6 +62,7 @@ df_clean <- df %>%
     areaLevel1, areaLevel2, #brain areas
     nC, avgC, avgCtype, varC, varCtype, #control data
     nE, avgE, avgEtype, varE, varEtype, #experimental data
+    meta, # inclusion in meta-analysis
     dataOrigin, cohensD, bias, blindRand, sigEffect
   ) %>%
   
@@ -73,6 +74,9 @@ df_clean <- df %>%
     
     # authors for citation
     authors = gsub("^(.*?),.*", "\\1 et al.", authors),
+    
+    # experiment ID
+    exp_ID = paste(ID, nest, sep = "_"),
     
     # change variance type to sd >> here all either SEM or not specified (NS). NS considered sem - can be checked in varCtype and varEtype
     sdC = ifelse(is.na(varC) | is.na(nC), NA, varC * sqrt(nC)),
