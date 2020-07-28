@@ -13,8 +13,10 @@
 # data folders
 # exclude everything
 data/raw/*
+data/temp/*
 data/processed/*
 
 # exception to the rule
 !data/raw/.gitkeep 
+!data/temp/.gitkeep
 !data/processed/.gitkeep
