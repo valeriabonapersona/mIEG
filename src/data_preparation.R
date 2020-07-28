@@ -1,9 +1,11 @@
-## Script: "Relative paths"
+## Script: "Overall data preparation"
 
 ## project: mIEG
 
 ## Input: excel data from osf (or downloaded)
-## Output: preprocessed data in data/processed/ folder
+## Output: 
+    ## 1) preprocessed data in data/temp/ folder for report "descriptives"
+    ## 2) preprocessed data in data/processed/ folder for meta-analysis
 
 ## Author: Valeria Bonapersona & Heike Schuler
 ## contact: v.bonapersona-2 (at) umcutrecht.nl
@@ -117,5 +119,19 @@ blind_me <- sample(1:nrow(df_clean), sample(1:nrow(df_clean), 1), replace = TRUE
 df_clean$yi[blind_me] <- df_clean$yi[blind_me] * -1
 
 
-# Save ----------------------------------------------------------------
+# Save 1) ----------------------------------------------------------------
 saveRDS(df_clean, paste0(temp, "df_report_datapreparation.RDS"))
+
+
+
+# Save 2) -----------------------------------------------------------------
+df_meta <- 
+  df_clean %>%
+  filter(
+    sex %in% c("M", "F"),
+    iegName == "cFOS"
+  ) %>%
+  ungroup() %>% droplevels()
+
+saveRDS(df_meta, paste0(temp, "meta.RDS"))
+
