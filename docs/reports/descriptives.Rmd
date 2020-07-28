@@ -49,7 +49,6 @@ df %>%
 
 
 ## cFos: meta-analysis choices
-The "data_onefile.R" from the "data_preparation.R" is filtered for sex (NS excluded) and ieg (only cFos). 
 
 ```{r cfos_filtering, message=FALSE, warning=FALSE, include=FALSE}
 df <- df %>%
@@ -61,6 +60,8 @@ df <- df %>%
   
 
 ```
+The "data_onefile.R" from the "data_preparation.R" is filtered for sex (NS excluded) and ieg (only cFos). A total of `r nrow(df)` are included (males: `r round(length(df[df$sex == "M",]$exp_ID) / nrow(df) * 100, 2)` %), `r sum(is.na(df$yi))` effect sizes are missing. 
+
 
 ### Choosing moderators for meta-analysis based on frequency
 Important variables to consider: 
@@ -147,3 +148,5 @@ The following variables will be used for *exploratory subgroup analysis*:
 *Other choices*: 
 
 - PFC papers in females will be included in the overall analysis, but no specific PFC analysis will be conducted.
+
+
