@@ -58,7 +58,7 @@ df_clean <- df %>%
     model, mCage, mTimeStart, mTimeLength, mHoursTotal, #model info
     hit2, #second hit
     tAcuteStressor, tStressorType, tNovel, tWaitPeriod, #acute stressor info
-    outMeasure, outTechnique, outUnit, #outcome measures
+    iegName, outMeasure, outTechnique, outUnit, #outcome measures
     areaLevel1, areaLevel2, #brain areas
     nC, avgC, avgCtype, varC, varCtype, #control data
     nE, avgE, avgEtype, varE, varEtype, #experimental data
@@ -70,7 +70,7 @@ df_clean <- df %>%
   mutate(
     
     # make necessary vars numeric
-    across(c(varC, nC, avgC, varE, nE, avgE), as.numeric), # CANCEL WARNING MESSAGE NAs!
+    across(c(varC, nC, avgC, varE, nE, avgE, cohensD), as.numeric), # CANCEL WARNING MESSAGE NAs!
     
     # authors for citation
     authors = gsub("^(.*?),.*", "\\1 et al.", authors),
@@ -82,8 +82,17 @@ df_clean <- df %>%
     sdC = ifelse(is.na(varC) | is.na(nC), NA, varC * sqrt(nC)),
     sdE = ifelse(is.na(varE) | is.na(nE), NA, varE * sqrt(nE)), 
     
+    # update var factor type
+    across(c(areaLevel1, areaLevel2, hit2, tStressorType, tAcuteStressor), as.factor)
+    
   ) %>%
   
+  # update var type
+  
+  
+  
+
+
   # cleaning
   ungroup() %>% droplevels()
   
@@ -97,6 +106,10 @@ df_clean <- escalc(m1i = avgE, sd1i = sdE, n1i = nE,
                   m2i = avgC, sd2i = sdC, n2i = nC, 
                   measure = "SMD",
                   data = df_clean)
+
+#Add cohens d from stats papers only & impute var. 
+df_clean$yi[is.na(df_clean$yi)] <- df_clean$cohensD[is.na(df_clean$yi)]
+df_clean$vi[is.na(df_clean$vi)] <- median(df_clean$vi, na.rm = T)
 
 # blinding
 blind_me <- sample(1:nrow(df_clean), sample(1:nrow(df_clean), 1), replace = TRUE)
