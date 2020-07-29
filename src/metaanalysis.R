@@ -88,11 +88,13 @@ subgroup_hit1 <- rma.mv(yi, vi,
 # summarize together
 comparison_hit <- data.frame(estimate = c(coef(subgroup_hit0), coef(subgroup_hit1)), 
                              stderror = c(subgroup_hit0$se, subgroup_hit1$se),
-                             meta = c("hit0","hit1"), 
-                             tau2 = round(c(subgroup_hit0$tau2, subgroup_hit1$tau2),3))
+                             meta = c(rep("hit0", length(subgroup_hit0$se)),
+                                      rep("hit1", length(subgroup_hit1$se))), 
+                             tau2 = c(rep(subgroup_hit0$tau2, length(subgroup_hit0$se)),
+                                      rep(subgroup_hit1$tau2, length(subgroup_hit1$se))))
 
 # meta-analyze with fixed effect
-rma(estimate, sei=stderror, mods = ~ meta, method="FE", data=comparison_hit, digits=3)
+rma(estimate, sei=stderror, mods = ~ meta -1, method="FE", data=comparison_hit, digits=3)
 
 # Wald test: to test the difference between the two
 with(comparison_hit, round(c(zval = (estimate[1] - estimate[2])/sqrt(stderror[1]^2 + stderror[2]^2)), 3))
@@ -118,8 +120,10 @@ subgroup_mice <- rma.mv(yi, vi,
 # summarize together
 comparison_species <- data.frame(estimate = c(coef(subgroup_rat), coef(subgroup_mice)), 
                              stderror = c(subgroup_rat$se, subgroup_mice$se),
-                             meta = c("rat","mice"), 
-                             tau2 = round(c(subgroup_rat$tau2, subgroup_mice$tau2),3))
+                             meta = c(rep("rat", length(subgroup_rat$se)),
+                                      rep("mice", length(subgroup_mice$se))), 
+                             tau2 = c(rep(subgroup_rat$tau2, length(subgroup_rat$se)),
+                                      rep(subgroup_mice$tau2, length(subgroup_mice$se))))
 
 # meta-analyze with fixed effects
 rma(estimate, sei=stderror, mods = ~ meta, method="FE", data=comparison_species, digits=3)
