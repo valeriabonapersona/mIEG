@@ -16,7 +16,9 @@ list_cran_packages <- c(
   "tidyverse", "readxl", "stringr", # data handling -> should all be in tidyverse but dont work
   "remotes", # download from github
   "metafor", # estimates and meta-analysis
-  "BSDA" # t-test from summary statistics
+  "BSDA", # t-test from summary statistics
+  "multcomp", # contrasts with multiple testing correction
+  "ggplot2"
 )
 
 

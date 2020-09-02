@@ -1,0 +1,175 @@
+---
+title: "Meta-Analysis Outcomes"
+author: "Heike Schuler"
+date: "31/08/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r data, include=FALSE}
+setwd('/Users/heike/Library/Mobile Documents/com~apple~CloudDocs/NC_Master/Writing_Assignment/mIEG/')
+source("src/utilities.R")
+df <- readRDS(paste0(processed, "meta.RDS"))
+df_info <- readRDS(paste0(temp, "df_report_datapreparation.RDS"))
+```
+
+# Dataset Modifications
+
+**Notes**:  
+
+- Only meta=1 are included. meta=0 do not fulfil inclusion criteria, such as which IEG, type of stressor, or type of outcome measure (i.e., gene expression studies).
+- Blinding was removed after main analysis was determined. If blinding should be turned on for this summary, let me know.
+- To account for multiple testing, I used x.
+
+
+## Outliers
+
+There are x comparisons that would be considered outliers according to the > 3SD rule. x come from predatory journals, and should therefore be removed. 
+
+
+## Final Dataset
+
+**Filtered to exclude**:
+
+- comparisons in brain areas other than PFC, HYP, TH, AMY, and HIP (`r length(unique(df_info$ID[!(df_info$areaLevel2 %in%  c('HYP','HPF','TH','AMY','PFC'))]))` publication(s); see *data_preparation.R*)
+- comparisons with pooled sex (`r length(unique(df_info$ID[df_info$sex == "NS"]))` publication(s))
+- comparisons with IEGs != cFos (`r length(unique(df_info$ID[df_info$iegName != "cFos"]))` publication(s))
+- comparisons with stressor types IGT (`r length(unique(df_info$ID[df_info$tStressorType == "IGT"]))` publication(s)), three chamber test (`r length(unique(df_info$ID[df_info$tStressorType == "Three chamber test"]))` publication(s)), and FC tasks (`r length(unique(df_info$ID[df_info$tStressorType == "Reexposure FC context (no shock)"]))` publication(s))
+- comparisons with IEG = cFos, but not Protein or mRNA measurements (i.e., RNA-seq studies; `r length(unique(df_info$ID[df_info$tStressorType == "Three chamber test"]))` publication(s)) 
+
+
+***
+
+# Main Analysis - Males
+
+The main meta-analysis for male rodents includes x publications, x experiments with x comparisons on x animals (x mice, x rats). x animals experienced a 2nd hit. 
+The main model tested differences between ELA and control animals, moderated by the presence of an acute stressor (Baseline vs Stressed) and brain area (HYP, HPF, TH, PFC, AMY). 
+
+```{r model, include=FALSE}
+df$zi <- (df$yi - mean(df$yi, na.rm = T)) / 
+  sd(df$yi, na.rm = T)
+df_filtered <- df %>% filter(sex == "M", species =='rat')
+mod <- rma.mv(yi, vi, 
+              random = list(~1 | each, ~1 | nest),
+              method = "REML",
+              data = df_filtered,
+              mods = ~ tAcuteStressor:areaLevel2 -1,
+              slab = paste(authors, year, sep=", "))
+```
+
+Interactions between moderators are visualized below:
+
+```{r visual1, echo=FALSE, message=F, warning=F}
+mod.plot <- as.data.frame(coef(mod))
+mod.plot[,2:3] <- t(as.data.frame(strsplit(rownames(mod.plot),':')))
+names(mod.plot) <- c('value','stressor','area')
+mod.plot$area <- gsub('areaLevel2','',mod.plot$area)
+mod.plot$se <- mod$se
+
+df_filtered %>%
+  group_by(areaLevel2,tAcuteStressor) %>%
+  summarize(obvs = length(exp_ID), 
+            exp = length(unique(exp_ID)), 
+            publ = length(unique(ID))) %>%
+  print()
+
+ggplot(mod.plot) +
+  geom_point(aes(stressor,value,color=area)) +
+  geom_line(aes(stressor,value,group=area,color=area)) +
+  geom_errorbar(aes(stressor, ymin=value-se, ymax=value+se, color=area), width=0.2)+
+  scale_x_discrete(labels=c('BL','AS')) +
+  ylab('Standardized Mean Differencce') +
+  facet_wrap(.~area)+
+  theme(panel.background = element_rect(fill = NA),
+        panel.grid.major = element_line(color = 'gray80'),
+        axis.line.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text = element_text(size=15),
+        axis.title.y = element_text(size=15))
+  
+```
+
+**RQ1: Effects of ELA on presence of acute stressor**
+
+Results of contrasts suggest that at Baseline, ELA animals have sifgnicantly increased cFos expression. After acute stress,  ELA and control animals do not differ from each other. 
+
+```{r RQ1, echo=F}
+## Create contrasts per RQ
+interactions <- names(data.frame(mod$X))
+
+# RQ1: effects of ELA on presence acute stressor
+acutestressor <- ifelse(str_detect(interactions, "tAcuteStressor1"), 1, 0)
+contr_acutestressor <- rbind(
+  ifelse(acutestressor == 1, 1/sum(acutestressor == 1), 0), # acute vs 0
+  ifelse(acutestressor == 0, 1/sum(acutestressor == 0), 0) # baseline vs 0
+)
+
+print(anova(mod, L = contr_acutestressor)) 
+```
+
+After multiple testing correction using **Holm's method**, results become statistically non-significant. 
+
+```{r RQ1.adj, echo=FALSE}
+summary(glht(mod, linfct = contr_acutestressor, df=df.residual(mod)), test=adjusted('holm'))
+```
+
+
+**RQ2: Effects of ELA on brain area**
+
+Results of contrasts no moderating effect of area, as no 
+
+```{r RQ2, echo=F}
+brainarea <- sub(".*2", "", interactions)
+contr_brainarea <- NULL
+for (area in unique(brainarea)) {
+  x <- ifelse(brainarea == area, 1/sum(brainarea == area), 0)
+  contr_brainarea <- rbind(contr_brainarea, x)
+}
+
+print(anova(mod, L = contr_brainarea)) # add multiple testing correction?
+```
+
+After multiple testing correction using **Holm's methods**, results remain non-significant.
+
+```{r RQ2.adj, echo=FALSE}
+summary(glht(mod, linfct = contr_brainarea, df=df.residual(mod)), test = adjusted('holm'))
+```
+
+
+## Subgroup Analysis - Hit2
+
+
+
+## Subgroup Analysis - Species
+
+There is only one study on mice, therefore a subgroup analysis on species is not possible. Instead, a sensitivity analysis will be performed (?). 
+
+## Sensitivity Analysis - Model
+
+## Sensitivity Analysis - Randomization 
+
+# Exploratory Analysis - Males 
+
+## Acute Stressor - Type
+
+## Acute Stressor - Novelty
+
+## Acute Stressor - Time
+
+## Outcome Measure
+
+## Waiting Period
+
+# Main Analysis - Females
+
+## Subgroups?
+
+## Sensitivity Analysis?
+
+## Explore? 
