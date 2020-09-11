@@ -11,7 +11,6 @@
 ## contact: v.bonapersona-2 (at) umcutrecht.nl
 
 
-
 # Environment preparation -------------------------------------------------
 source("src/utilities.R")
 
@@ -42,15 +41,8 @@ levels(as.factor(c(as.character(df$varEtype),
 df$areaLevel1[df$areaLevel1 %in% c('vCA1','vCA2','vCA3','vDG','dCA1','dCA2','dCA3','dDG')] <-
   substring(df$areaLevel1[df$areaLevel1 %in% c('vCA1','vCA2','vCA3','vDG','dCA1','dCA2','dCA3','dDG')],2)
 
-# SEX NOT SELECTED HERE!
+# Meta-analytic filter in the end. 
 df_clean <- df %>%
-
-  # studies with meta-analytic information
-  filter(
- #   meta == 1, # @ heike - how did you create this variable?, @ valeria - do it on all?
-
-    areaLevel2 %in% c('PFC','TH','HPF','HYP','AMY'), # specific regions - due to frequency?
-  ) %>%
 
   # select variables of interest
   select(
@@ -89,19 +81,13 @@ df_clean <- df %>%
 
   ) %>%
 
-  # update var type
-
-
-
-
-
   # cleaning
   ungroup() %>% droplevels()
 
 
 # perform t-test for systematic review
 df_clean$p_val <- tsum.test(df_clean$avgC, df_clean$sdC,df_clean$nC,
-                           df_clean$avgE, df_clean$sdE, df_clean$nE)$p.value
+                            df_clean$avgE, df_clean$sdE, df_clean$nE)$p.value
 
 # estimate effect sizes for meta-analysis
 df_clean <- escalc(m1i = avgE, sd1i = sdE, n1i = nE,
@@ -114,13 +100,12 @@ df_clean$yi[is.na(df_clean$yi)] <- df_clean$cohensD[is.na(df_clean$yi)]
 df_clean$vi[is.na(df_clean$vi)] <- median(df_clean$vi, na.rm = T)
 
 # blinding
-blind_me <- sample(1:nrow(df_clean), sample(1:nrow(df_clean), 1), replace = TRUE)
-df_clean$yi[blind_me] <- df_clean$yi[blind_me] * -1
+#blind_me <- sample(1:nrow(df_clean), sample(1:nrow(df_clean), 1), replace = TRUE)
+#df_clean$yi[blind_me] <- df_clean$yi[blind_me] * -1
 
 
 # Save 1) ----------------------------------------------------------------
 saveRDS(df_clean, paste0(temp, "df_report_datapreparation.RDS"))
-
 
 
 # Save 2) -----------------------------------------------------------------
@@ -128,8 +113,12 @@ df_meta <-
   df_clean %>%
   filter(
     sex %in% c("M", "F"),
-    iegName == "cFos"
+    iegName == "cFos",
+    meta == 1,
+    areaLevel2 %in% c('PFC','TH','HPF','HYP','AMY')
   ) %>%
   ungroup() %>% droplevels()
 
+
 saveRDS(df_meta, paste0(processed, "meta.RDS"))
+

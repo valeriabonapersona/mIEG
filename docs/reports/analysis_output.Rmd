@@ -16,25 +16,39 @@ setwd('/Users/heike/Library/Mobile Documents/com~apple~CloudDocs/NC_Master/Writi
 source("src/utilities.R")
 df <- readRDS(paste0(processed, "meta.RDS"))
 df_info <- readRDS(paste0(temp, "df_report_datapreparation.RDS"))
+df$zi <- (df$yi - mean(df$yi, na.rm = T)) / sd(df$yi, na.rm = T)
+df_filtered <- df %>% filter(sex == "M")
 ```
 
 # Dataset Modifications
 
 **Notes**:  
 
-- Only meta=1 are included. meta=0 do not fulfil inclusion criteria, such as which IEG, type of stressor, or type of outcome measure (i.e., gene expression studies).
+- Only *meta*=1 are included. meta=0 do not fulfil inclusion criteria, such as which IEG, type of stressor, or type of outcome measure (i.e., gene expression studies).
 - Blinding was removed after main analysis was determined. If blinding should be turned on for this summary, let me know.
-- To account for multiple testing, I used x.
+- To account for multiple testing, I used the package *multcomp*, which offers contrasts with multiple testing correction. Following Viechtbauer advise, I used *Holm's* multiple testing correction. The corrections included in the metafor package cannot be applied to the multivariate case. 
 
 
 ## Outliers
 
-There are x comparisons that would be considered outliers according to the > 3SD rule. x come from predatory journals, and should therefore be removed. 
+There are `r length(unique(df$each[df$zi > 3]))` comparisons that would be considered outliers according to the > 3SD rule. None come from predatory journals. 
+
+I checked for outliers and influential cases in more detail with the *influence* function. 
+
+```{r outliers, echo=F, out.width='\\textwidth', fig.height = 12, fig.align='center'} 
+res <- rma(yi, vi, measure="ZCOR", data=df_filtered)
+inf <- influence(res)
+plot(inf, layout=c(8,1))
+
+df_filtered <- df_filtered[-which(inf$inf$inf == '*'),]
+```
+
+From this, only one case remains, which is considered an influential outlier across all available metrics. I removed this comparison (`r df_filtered$authors[which(inf$inf$inf == '*')]`) from the rest of the analysis. 
 
 
 ## Final Dataset
 
-**Filtered to exclude**:
+**Excluded**:
 
 - comparisons in brain areas other than PFC, HYP, TH, AMY, and HIP (`r length(unique(df_info$ID[!(df_info$areaLevel2 %in%  c('HYP','HPF','TH','AMY','PFC'))]))` publication(s); see *data_preparation.R*)
 - comparisons with pooled sex (`r length(unique(df_info$ID[df_info$sex == "NS"]))` publication(s))
@@ -43,17 +57,17 @@ There are x comparisons that would be considered outliers according to the > 3SD
 - comparisons with IEG = cFos, but not Protein or mRNA measurements (i.e., RNA-seq studies; `r length(unique(df_info$ID[df_info$tStressorType == "Three chamber test"]))` publication(s)) 
 
 
+I tried many things with female rodents (i.e. everything I tried for males), but there is really nothing to be found, so I also haven't included the results here. I believe there's too much heterogeneity within the female sample to make conclusions based on meta-analyses - I think, for females the best way to go is by systematic review. If you want to see any analysis in particular (i.e., a specific moderator or comparison), let me know. 
+
+
 ***
 
-# Main Analysis - Males
+# Main Analysis
 
-The main meta-analysis for male rodents includes x publications, x experiments with x comparisons on x animals (x mice, x rats). x animals experienced a 2nd hit. 
-The main model tested differences between ELA and control animals, moderated by the presence of an acute stressor (Baseline vs Stressed) and brain area (HYP, HPF, TH, PFC, AMY). 
+The main meta-analysis for male rodents includes `r length(unique(df_filtered$ID))` publications, `r length(unique(df_filtered$nest))` experiments with `r length(unique(df_filtered$each))` comparisons on `r sum(df_filtered$nC[match(unique(df_filtered$nest),df_filtered$nest)])+sum(df_filtered$nE[match(unique(df_filtered$nest),df_filtered$nest)])` animals. 
+The main model tested differences between ELA and control animals, moderated by the presence of an acute stressor (Baseline vs Stressed) and brain area (HYP, HPF, TH, PFC, AMY). Frequency distributions, where n = number of comparisons, among these factors follow. Interactions between moderators are visualized below as well, but I did not analyse the full interaction effects, because there are too many levels for the sample size. Instead, below I anayzed the effects of the two moderators separately in the two research questions. 
 
 ```{r model, include=FALSE}
-df$zi <- (df$yi - mean(df$yi, na.rm = T)) / 
-  sd(df$yi, na.rm = T)
-df_filtered <- df %>% filter(sex == "M", species =='rat')
 mod <- rma.mv(yi, vi, 
               random = list(~1 | each, ~1 | nest),
               method = "REML",
@@ -62,21 +76,22 @@ mod <- rma.mv(yi, vi,
               slab = paste(authors, year, sep=", "))
 ```
 
-Interactions between moderators are visualized below:
+```{r frequencies, echo=F, message=F}
+tab <- df_filtered %>%
+          group_by(tAcuteStressor,areaLevel2) %>%
+          summarize(obvs = length(exp_ID), 
+                    exp = length(unique(exp_ID)), 
+                    publ = length(unique(ID)))
+names(tab) <- c('Area','Stressor','Comps','Nests','Pubs')
+knitr::kable(tab)
+```
 
-```{r visual1, echo=FALSE, message=F, warning=F}
+```{r visual1, echo=FALSE, message=F, warning=F, out.width='\\textwidth', fig.align='center'}
 mod.plot <- as.data.frame(coef(mod))
 mod.plot[,2:3] <- t(as.data.frame(strsplit(rownames(mod.plot),':')))
 names(mod.plot) <- c('value','stressor','area')
 mod.plot$area <- gsub('areaLevel2','',mod.plot$area)
 mod.plot$se <- mod$se
-
-df_filtered %>%
-  group_by(areaLevel2,tAcuteStressor) %>%
-  summarize(obvs = length(exp_ID), 
-            exp = length(unique(exp_ID)), 
-            publ = length(unique(ID))) %>%
-  print()
 
 ggplot(mod.plot) +
   geom_point(aes(stressor,value,color=area)) +
@@ -94,10 +109,12 @@ ggplot(mod.plot) +
         axis.title.y = element_text(size=15))
   
 ```
-
+ 
+ 
+ 
 **RQ1: Effects of ELA on presence of acute stressor**
 
-Results of contrasts suggest that at Baseline, ELA animals have sifgnicantly increased cFos expression. After acute stress,  ELA and control animals do not differ from each other. 
+Results of contrasts suggest that at Baseline, ELA animals have sifgnicantly increased cFos expression. After acute stress, ELA and control animals do not differ from each other. 
 
 ```{r RQ1, echo=F}
 ## Create contrasts per RQ
@@ -106,23 +123,37 @@ interactions <- names(data.frame(mod$X))
 # RQ1: effects of ELA on presence acute stressor
 acutestressor <- ifelse(str_detect(interactions, "tAcuteStressor1"), 1, 0)
 contr_acutestressor <- rbind(
-  ifelse(acutestressor == 1, 1/sum(acutestressor == 1), 0), # acute vs 0
-  ifelse(acutestressor == 0, 1/sum(acutestressor == 0), 0) # baseline vs 0
+  ifelse(acutestressor == 0, 1/sum(acutestressor == 0), 0), # baseline vs 0
+  ifelse(acutestressor == 1, 1/sum(acutestressor == 1), 0) # acute vs 0
 )
 
-print(anova(mod, L = contr_acutestressor)) 
+res <- anova(mod, L = contr_acutestressor)
+res <- data.frame(comp = c('baseline','acute stress'),
+                  estimate = res$Lb,
+                  se = res$se,
+                  zval = res$zval,
+                  pval = res$pval,
+                  row.names=NULL)
+knitr::kable(res)
 ```
 
-After multiple testing correction using **Holm's method**, results become statistically non-significant. 
+After multiple testing correction using *Holm's method*, results become statistically non-significant. 
 
 ```{r RQ1.adj, echo=FALSE}
-summary(glht(mod, linfct = contr_acutestressor, df=df.residual(mod)), test=adjusted('holm'))
+res <- summary(glht(mod, linfct = contr_acutestressor, df=df.residual(mod)), test=adjusted('holm'))
+res <- data.frame(comp = c('baseline','acute stress'),
+                  estimate = res$test$coefficients,
+                  se = res$test$sigma,
+                  tval = res$test$tstat,
+                  pval = res$test$pvalues)
+knitr::kable(res)
 ```
-
-
+ 
+ 
+ 
 **RQ2: Effects of ELA on brain area**
 
-Results of contrasts no moderating effect of area, as no 
+Results of contrasts indicate on average **increased** levels of cFos in the amygdala and prefrontal cortex in ELA animals as compared to controls.
 
 ```{r RQ2, echo=F}
 brainarea <- sub(".*2", "", interactions)
@@ -132,44 +163,474 @@ for (area in unique(brainarea)) {
   contr_brainarea <- rbind(contr_brainarea, x)
 }
 
-print(anova(mod, L = contr_brainarea)) # add multiple testing correction?
+res <- anova(mod, L = contr_brainarea)
+res <- data.frame(comp = c('amygdala','hippocampus','hypothalamus','prefrontal cortex','thalamus'),
+                  estimate = res$Lb,
+                  se = res$se,
+                  zval = res$zval,
+                  pval = res$pval,
+                  row.names=NULL)
+knitr::kable(res)
 ```
 
-After multiple testing correction using **Holm's methods**, results remain non-significant.
+After multiple testing correction using *Holm's methods*, results become statistically non-significant.
 
 ```{r RQ2.adj, echo=FALSE}
-summary(glht(mod, linfct = contr_brainarea, df=df.residual(mod)), test = adjusted('holm'))
+res <- summary(glht(mod, linfct = contr_brainarea, df=df.residual(mod)), test = adjusted('holm'))
+res <- data.frame(comp = c('amygdala','hippocampus','hypothalamus','prefrontal cortex','thalamus'),
+                  estimate = res$test$coefficients,
+                  se = res$test$sigma,
+                  tval = res$test$tstat,
+                  pval = res$test$pvalues)
+knitr::kable(res)
 ```
 
+***
 
-## Subgroup Analysis - Hit2
+From here on, I only report adjusted p-values!!!
+
+# Subgroup Analysis
+  
+**Notes**:  
+- After cleaning the dataset, it was no longer feasible to conduct a subgroup analysis for species (only `r length(unique(df_filtered$each[df_filtered$species != "rat"]))` comparison != rat). Instead, I performed a sensitivity analysis for species.  
+- I did check if there's an interaction effect between 2nd hit and baseline/AS. I did not check for interaction with brain area, because there were too little samples in my opinion. The frequency distributions are shown below.  
+  
+  
+```{r frequencies.sg, echo=F, message=F, warning=F}
+tab <- df_filtered %>%
+          group_by(hit2,tAcuteStressor) %>%
+          summarize(obvs = length(exp_ID), 
+                    exp = length(unique(exp_ID)), 
+                    publ = length(unique(ID)))
+names(tab) <- c('2nd Hit','Stressor','Comps','Nests','Pubs')
+knitr::kable(tab)
+
+tab <- df_filtered %>%
+          group_by(hit2,areaLevel2) %>%
+          summarize(obvs = length(exp_ID), 
+                    exp = length(unique(exp_ID)), 
+                    publ = length(unique(ID)))
+names(tab) <- c('2nd Hit','Stressor','Comps','Nests','Pubs')
+knitr::kable(tab)
+```
+
+The subgroup analysis main effects are significant for 2nd hit animals, suggesting a larger effect size between control and ELA animals only if exposed to 2nd hit. 
+
+**Question: Why did you choose to make a fixed effects meta analysis for the subgroup? And why univariate? You also do a separate Wald Test to compare the two. Why are we interested in that? **  
+
+**Question: There seems to be an error in how you coded the Wald test, and since I'm not really sure why we do this, I cannot fix it. I think after the last update, you changed the construction of the contrast df in a way that this indexing doesn't fit anymore.**
+
+*with(comparison_hit, round(c(zval = (estimate[1] - estimate[2])/sqrt(stderror[1]^2 + stderror[2]^2)), 3))*
+
+```{r subrgroup.main, echo=F, message=F, warning=F}
+# estimates for each subgroup
+subgroup_hit0 <- rma.mv(yi, vi, 
+                        random = list(~1 | each, ~1 | nest),
+                        method = "REML",
+                        data = df_filtered,
+                        mods = ~ tAcuteStressor:areaLevel2 -1,
+                        subset = (hit2==0),
+                        slab = paste(authors, year, sep=", "))
+subgroup_hit1 <- rma.mv(yi, vi, 
+                        random = list(~1 | each, ~1 | nest),
+                        method = "REML",
+                        data = df_filtered,
+                        mods = ~ tAcuteStressor:areaLevel2 -1,
+                        subset = (hit2==1),
+                        slab = paste(authors, year, sep=", "))
+
+# summarize together
+comparison_hit <- data.frame(estimate = c(coef(subgroup_hit0), coef(subgroup_hit1)), 
+                             stderror = c(subgroup_hit0$se, subgroup_hit1$se),
+                             meta = c(rep("hit0", length(subgroup_hit0$se)),
+                                      rep("hit1", length(subgroup_hit1$se))), 
+                             stressor = c('BL','AS','BL','AS','BL','AS','BL','BL',
+                                          'BL','AS','BL','AS','BL','AS','BL','AS','BL','AS'),
+                             tau2 = c(rep(subgroup_hit0$tau2, length(subgroup_hit0$se)),
+                                      rep(subgroup_hit1$tau2, length(subgroup_hit1$se))))
+
+# meta-analyze with fixed effect
+res <- rma(estimate, sei=stderror, mods = ~ meta -1, method="FE", data=comparison_hit, digits=3)
+res <- data.frame(comp = c('No 2nd Hit','2nd Hit'),
+                  estimate = res$beta,
+                  se = res$se,
+                  zval = res$zval,
+                  pval = p.adjust(res$pval,method='holm'),
+                  row.names=NULL)
+knitr::kable(res)
+
+# Wald test: to test the difference between the two
+#res <- with(comparison_hit, round(c(zval = (estimate[1] - estimate[2])/sqrt(stderror[1]^2 + stderror[2]^2)), 3))
+#print(paste('Wald Test z-value =',res))
+
+```
+
+I performed the same analysis but now investigating whether there is a moderating effect of acute stressor and plotted the interaction. In general, ELA animals express more cFos at baseline, independent of whether a 2nd hit was present or not. After acute stress, only ELA animals with a 2nd hit display increased cFos expression as compared to controls. However, here I show adjusted p-values, which become non-significant after adjustment.
+
+``` {r subgroup.interact, echo=F, message=F, fig.align='center'}
+# meta-analyze with fixed effect
+res <- rma(estimate, sei=stderror, mods = ~ meta:stressor -1, method="FE", data=comparison_hit, digits=3)
+res <- data.frame(comp = c('No 2nd Hit','2nd Hit','No 2nd Hit','2nd Hit'),
+                  stressor = c('AS','AS','BL','BL'),
+                  estimate = res$beta,
+                  se = res$se,
+                  zval = res$zval,
+                  pval = p.adjust(res$pval,method='holm'),
+                  row.names=NULL)
+knitr::kable(res)
+
+res$stressor <- factor(res$stressor, levels=c('BL','AS'))
+
+ggplot(res) +
+  geom_point(aes(stressor,estimate,color=comp)) +
+  geom_line(aes(stressor,estimate,group=comp,color=comp)) +
+  geom_errorbar(aes(stressor, ymin=estimate-se, ymax=estimate+se, color=comp), width=0.2)+
+  ylab('Standardized Mean Differencce') +
+  facet_wrap(.~comp)+
+  theme(panel.background = element_rect(fill = NA),
+        panel.grid.major = element_line(color = 'gray80'),
+        axis.line.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text = element_text(size=15),
+        axis.title.y = element_text(size=15))
+```
+
+***
+
+# Sensitivity Analysis
+
+Three different sensitivity analyses were performed: Species, Model, Random/Blind Studies. Randomization might change if we disagree on this factor. 
+
+## Species
+
+Only one publication and comparison that investigated male mice in line with our criteria. Sensitivity analysis (Wald Test) showed no significant difference between the findings, suggesting that the inclusion of this study had no effect on the main outcome.
 
 
+``` {r sensitivity.species, echo=F, message=F, warning=F}
+mod_sens <- rma.mv(yi, vi, 
+              random = list(~1 | each, ~1 | nest),
+              method = "REML",
+              data = df_filtered,
+              subset = (species=='rat'),
+              mods = ~ tAcuteStressor:areaLevel2 -1, 
+              slab = paste(authors, year, sep=", "))
 
-## Subgroup Analysis - Species
+# summarize together
+comparison_sens <- data.frame(estimate = c(coef(mod), coef(mod_sens)), 
+                             stderror = c(mod$se, mod_sens$se),
+                             sens = c(rep("all", length(mod$se)),
+                                      rep("wo_mice", length(mod_sens$se))), 
+                             tau2 = c(rep(mod$tau2, length(mod$se)),
+                                      rep(mod_sens$tau2, length(mod_sens$se))))
 
-There is only one study on mice, therefore a subgroup analysis on species is not possible. Instead, a sensitivity analysis will be performed (?). 
+# meta-analyze with fixed effect
+res <- rma(estimate, sei=stderror, mods = ~ sens -1, method="FE", data=comparison_sens, digits=3)
+res <- data.frame(comp = c('All','Wihtout Mice'),
+                  estimate = res$beta,
+                  se = res$se,
+                  zval = res$zval,
+                  pval = p.adjust(res$pval,method='holm'),
+                  row.names=NULL)
+knitr::kable(res)
 
-## Sensitivity Analysis - Model
+# Wald test: to test the difference between the two
+#res <- with(comparison_sens, round(c(zval = (estimate[1] - estimate[2])/sqrt(stderror[1]^2 + stderror[2]^2)), 3))
+#print(paste('Wald Test z-value =',res))
 
-## Sensitivity Analysis - Randomization 
+```
+
+## ELA Model
+
+The majority of comparisons were based on maternal separation model (`r length(df_filtered$each[df_filtered$model == 'MS'])` comps). Sensitivity analysis (Wald Test) showed no significant difference between the findings, suggesting that the inclusion of these studies had no effect on the main outcome.
+
+``` {r sensitivity.model, echo=F, message=F, warning=F}
+mod_sens <- rma.mv(yi, vi, 
+              random = list(~1 | each, ~1 | nest),
+              method = "REML",
+              data = df_filtered,
+              subset = (model=='MS'),
+              mods = ~ tAcuteStressor:areaLevel2 -1, 
+              slab = paste(authors, year, sep=", "))
+
+# summarize together
+comparison_sens <- data.frame(estimate = c(coef(mod), coef(mod_sens)), 
+                             stderror = c(mod$se, mod_sens$se),
+                             sens = c(rep("all", length(mod$se)),
+                                      rep("MS_only", length(mod_sens$se))), 
+                             tau2 = c(rep(mod$tau2, length(mod$se)),
+                                      rep(mod_sens$tau2, length(mod_sens$se))))
+
+# meta-analyze with fixed effect
+res <- rma(estimate, sei=stderror, mods = ~ sens -1, method="FE", data=comparison_sens, digits=3)
+res <- data.frame(comp = c('All','MS only'),
+                  estimate = res$beta,
+                  se = res$se,
+                  zval = res$zval,
+                  pval = p.adjust(res$pval,method='holm'),
+                  row.names=NULL)
+knitr::kable(res)
+
+# Wald test: to test the difference between the two
+#res <- with(comparison_sens, round(c(zval = (estimate[1] - estimate[2])/sqrt(stderror[1]^2 + stderror[2]^2)), 3))
+#print(paste('Wald Test z-value =',res))
+```
+
+## Blinded & Randomized 
+
+I considered only `r length(df_filtered$each[df_filtered$blindRand == 0])` publication as completely blinded and randomized, so I did not perform this sensitivity analysis. 
+
+***
 
 # Exploratory Analysis - Males 
 
+Based on frequency, we decided to explore stressor type, novelty of stressor and time between stressor and perfusion as well as which outcome measure was used (protein vs mRNA). Interaction with presence of acute stressor were assessed for non of these subgroups. Frequency distributions follow below. 
+
 ## Acute Stressor - Type
+
+Stressor types were grouped to be *physical* (i.e. application of external force/induction of physical pain) or *psychological* (i.e. exposure to novel/challenging environment) in nature. Restraint stress, in my opinion, falls between both, but I would consider it more physical than psychological. I tried sorting restraint as both, but the results of this subgroup analysis weren't changed by that. Thoughts?
+
+**Physical**: Colorectal distension, foot shock, shock, restraint stress.  
+**Psycholoogical**: Elevated plus maze, forced swim test, novel environment, open field test.
+
+Results below suggest that physical stressors will result in significantly enhanced cFos in ELA animals in comparison to controls, but psychological stressors do not. 
+
+``` {r subgroup.type, echo=F, message=F, warning=F}
+#categorize into groups. 
+phys <- c('CRD','FS in inhibitory avoidance task','Shock in shock-probe burial task','RS')
+psyc <- c('EPM','FST','NE','OFT')
+
+df_filtered$tStressorTypeGroup[df_filtered$tStressorType %in% phys] <- 'physical'
+df_filtered$tStressorTypeGroup[df_filtered$tStressorType %in% psyc] <- 'psychological'
+df_filtered$tStressorTypeGroup[df_filtered$tStressorType == 'NA'] <- 'none'
+
+#frequencies. 
+tab <- df_filtered %>%
+          filter(tAcuteStressor == 1) %>%
+          group_by(tStressorTypeGroup) %>%
+          summarize(obvs = length(exp_ID), 
+                    exp = length(unique(exp_ID)), 
+                    publ = length(unique(ID)))
+names(tab) <- c('Novel','Comps','Nests','Pubs')
+knitr::kable(tab)
+
+# estimates for each subgroup
+subgroup_phys <- rma.mv(yi, vi, 
+                        random = list(~1 | each, ~1 | nest),
+                        method = "REML",
+                        data = df_filtered,
+                        mods = ~ areaLevel2 -1,
+                        subset = (tStressorTypeGroup=='physical'),
+                        slab = paste(authors, year, sep=", "))
+subgroup_psyc <- rma.mv(yi, vi, 
+                        random = list(~1 | each, ~1 | nest),
+                        method = "REML",
+                        data = df_filtered,
+                        mods = ~ areaLevel2 -1,
+                        subset = (tStressorTypeGroup=='psychological'),
+                        slab = paste(authors, year, sep=", "))
+
+# summarize together
+comparison_type <- data.frame(estimate = c(coef(subgroup_phys), coef(subgroup_psyc)), 
+                             stderror = c(subgroup_phys$se, subgroup_psyc$se),
+                             meta = c(rep("physical", length(subgroup_phys$se)),
+                                      rep("psychological", length(subgroup_psyc$se))), 
+                             tau2 = c(rep(subgroup_phys$tau2, length(subgroup_phys$se)),
+                                      rep(subgroup_psyc$tau2, length(subgroup_psyc$se))))
+
+# meta-analyze with fixed effect
+res <- rma(estimate, sei=stderror, mods = ~ meta -1, method="FE", data=comparison_type, digits=3)
+res <- data.frame(comp = c('Physical','Psychological'),
+                  estimate = res$beta,
+                  se = res$se,
+                  zval = res$zval,
+                  pval = p.adjust(res$pval,method='holm'),
+                  row.names=NULL)
+knitr::kable(res)
+
+# Wald test: to test the difference between the two
+#res <- with(comparison_type, round(c(zval = (estimate[1] - estimate[2])/sqrt(stderror[1]^2 + stderror[2]^2)), 3))
+#print(paste('Wald Test z-value =',res))
+
+```
 
 ## Acute Stressor - Novelty
 
+Differences between ELA and control animals after acute stress are non-significant for both known and novel stressors. Note, however, that only `r length(df_filtered$each[df_filtered$tNovel == 0])` comparisons report on known stressors, in comparison to `r length(df_filtered$each[df_filtered$tNovel == 1])` reporting on novel stressors. 
+
+``` {r subgroup.novelty, echo=F, message=F, warning=F}
+#Frequencies.
+tab <- df_filtered %>%
+          filter(tAcuteStressor == 1) %>%
+          group_by(tNovel) %>%
+          summarize(obvs = length(exp_ID), 
+                    exp = length(unique(exp_ID)), 
+                    publ = length(unique(ID)))
+names(tab) <- c('Novel','Comps','Nests','Pubs')
+knitr::kable(tab)
+
+# estimates for each subgroup
+subgroup_novel <- rma.mv(yi, vi, 
+                        random = list(~1 | each, ~1 | nest),
+                        method = "REML",
+                        data = df_filtered,
+                        mods = ~ areaLevel2 -1,
+                        subset = (tNovel == 1),
+                        slab = paste(authors, year, sep=", "))
+subgroup_old <- rma.mv(yi, vi, 
+                        random = list(~1 | each, ~1 | nest),
+                        method = "REML",
+                        data = df_filtered,
+                        mods = ~ areaLevel2 -1,
+                        subset = (tNovel == 0),
+                        slab = paste(authors, year, sep=", "))
+
+# summarize together
+comparison_novelty <- data.frame(estimate = c(coef(subgroup_old), coef(subgroup_novel)), 
+                             stderror = c(subgroup_old$se, subgroup_novel$se),
+                             meta = c(rep("old", length(subgroup_old$se)),
+                                      rep("novel", length(subgroup_novel$se))), 
+                             tau2 = c(rep(subgroup_old$tau2, length(subgroup_old$se)),
+                                      rep(subgroup_novel$tau2, length(subgroup_novel$se))))
+
+# meta-analyze with fixed effect
+res <- rma(estimate, sei=stderror, mods = ~ meta -1, method="FE", data=comparison_novelty, digits=3)
+res <- data.frame(comp = c('Novel','Unknown'),
+                  estimate = res$beta,
+                  se = res$se,
+                  zval = res$zval,
+                  pval = p.adjust(res$pval,method='holm'),
+                  row.names=NULL)
+knitr::kable(res)
+
+# Wald test: to test the difference between the two
+#res <- with(comparison_novelty, round(c(zval = (estimate[1] - estimate[2])/sqrt(stderror[1]^2 + stderror[2]^2)), 3))
+#print(paste('Wald Test z-value =',res))
+
+```
+
 ## Acute Stressor - Time
+
+Time is measured as duration between time of onset of stressor and perfusion in minutes. The plot below shows the hisotgram by outcome measure. There seems to be no straightforward relationship between time and effect size. 
+
+*red* - mRNA; *blue* - protein. 
+
+``` {r subgroup.time1, echo=F, message=F, warning=F, fig.align='center'}
+metaregression_time <- rma.mv(yi, vi, 
+                        random = list(~1 | each, ~1 | nest),
+                        method = "REML",
+                        data = df_filtered,
+                        mods = ~ tWaitPeriod -1,
+                        subset = (tAcuteStressor == 1 & outMeasure == 'M'),
+                        slab = paste(authors, year, sep=", "))
+
+color <- c('red','blue')[as.factor(df_filtered$outMeasure)]                        
+plot(df_filtered$tWaitPeriod,df_filtered$yi,col=color)
+
+res <- data.frame(comp = c('Time'),
+                  estimate = metaregression_time$beta,
+                  se = metaregression_time$se,
+                  zval = metaregression_time$zval,
+                  pval = p.adjust(metaregression_time$pval,method='holm'),
+                  row.names=NULL)
+knitr::kable(res)
+```
+
+Binning timepoints for **protein studies** into early (=<60) and late (>60) does not alter the results. 
+
+``` {r subgroup.time2, echo=F, message=F, warning=F}
+# estimates for each subgroup
+subgroup_early <- rma.mv(yi, vi, 
+                        random = list(~1 | each, ~1 | nest),
+                        method = "REML",
+                        data = df_filtered,
+                        mods = ~ areaLevel2 -1,
+                        subset = (tAcuteStressor == 1 & outMeasure == 'P'& tWaitPeriod <= 60),
+                        slab = paste(authors, year, sep=", "))
+subgroup_late <- rma.mv(yi, vi, 
+                        random = list(~1 | each, ~1 | nest),
+                        method = "REML",
+                        data = df_filtered,
+                        mods = ~ areaLevel2 -1,
+                        subset = (tAcuteStressor == 1 & outMeasure == 'P' & tWaitPeriod > 60),
+                        slab = paste(authors, year, sep=", "))
+
+# summarize together
+comparison_time <- data.frame(estimate = c(coef(subgroup_early), coef(subgroup_late)), 
+                             stderror = c(subgroup_early$se, subgroup_late$se),
+                             meta = c(rep("early", length(subgroup_early$se)),
+                                      rep("late", length(subgroup_late$se))), 
+                             tau2 = c(rep(subgroup_early$tau2, length(subgroup_early$se)),
+                                      rep(subgroup_late$tau2, length(subgroup_late$se))))
+
+# meta-analyze with fixed effect
+res <- rma(estimate, sei=stderror, mods = ~ meta -1, method="FE", data=comparison_time, digits=3)
+res <- data.frame(comp = c('Early','Late'),
+                  estimate = res$beta,
+                  se = res$se,
+                  zval = res$zval,
+                  pval = p.adjust(res$pval,method='holm'),
+                  row.names=NULL)
+knitr::kable(res)
+
+# Wald test: to test the difference between the two
+#res <- with(comparison_time, round(c(zval = (estimate[1] - estimate[2])/sqrt(stderror[1]^2 + stderror[2]^2)), 3))
+#print(paste('Wald Test z-value =',res))
+```
+
 
 ## Outcome Measure
 
-## Waiting Period
+As expected by number of comparisons, the meta-analysis of Protein studies only shows a significant increase in cFos in ELA animals as compared to controls, whereas the meta-analsysi of mRNA studies does not. Both show average effects in the same direction and of the same size.
 
-# Main Analysis - Females
+The mRNA meta-analysis shows no significant residual heterogeneity of studies, whereas the protein meta-analysis does. 
 
-## Subgroups?
 
-## Sensitivity Analysis?
+``` {r subgroup.measure, echo=F, message=F, warning=F}
+#Frequencies
+tab <- df_filtered %>%
+          group_by(tAcuteStressor, outMeasure) %>%
+          summarize(obvs = length(exp_ID), 
+                    exp = length(unique(exp_ID)), 
+                    publ = length(unique(ID)))
+names(tab) <- c('Stressor','Measure','Comps','Nests','Pubs')
+knitr::kable(tab)
 
-## Explore? 
+# estimates for each subgroup
+subgroup_prot <- rma.mv(yi, vi, 
+                        random = list(~1 | each, ~1 | nest),
+                        method = "REML",
+                        data = df_filtered,
+                        mods = ~ tAcuteStressor:areaLevel2 -1,
+                        subset = (outMeasure == 'P'),
+                        slab = paste(authors, year, sep=", "))
+subgroup_mrna <- rma.mv(yi, vi, 
+                        random = list(~1 | each, ~1 | nest),
+                        method = "REML",
+                        data = df_filtered,
+                        mods = ~ tAcuteStressor:areaLevel2 -1,
+                        subset = (outMeasure == 'M'),
+                        slab = paste(authors, year, sep=", "))
+
+# summarize together
+comparison_measure <- data.frame(estimate = c(coef(subgroup_prot), coef(subgroup_mrna)), 
+                             stderror = c(subgroup_prot$se, subgroup_mrna$se),
+                             meta = c(rep("protein", length(subgroup_prot$se)),
+                                      rep("mRNA", length(subgroup_mrna$se))), 
+                             tau2 = c(rep(subgroup_prot$tau2, length(subgroup_prot$se)),
+                                      rep(subgroup_mrna$tau2, length(subgroup_mrna$se))))
+
+# meta-analyze with fixed effect
+res <- rma(estimate, sei=stderror, mods = ~ meta -1, method="FE", data=comparison_measure, digits=3)
+res <- data.frame(comp = c('mRNA','Protein'),
+                  estimate = res$beta,
+                  se = res$se,
+                  zval = res$zval,
+                  pval = p.adjust(res$pval,method='holm'),
+                  row.names = NULL)
+knitr::kable(res)
+
+# Wald test: to test the difference between the two
+#res <- with(comparison_measure, round(c(zval = (estimate[1] - estimate[2])/sqrt(stderror[1]^2 + stderror[2]^2)), 3))
+#print(paste('Wald Test z-value =',res))
+```
