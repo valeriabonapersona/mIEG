@@ -135,7 +135,11 @@ rob <- df_list[["Outcomes"]] %>%
   unique() %>% 
   
   # transform to long
-  pivot_longer(cols = starts_with("RB_"), names_to = "type_bias", values_to = "value_bias")
+  pivot_longer(cols = starts_with("RB_"), names_to = "type_bias", values_to = "value_bias") %>% 
+  
+  # calculate percentages
+  group_by(type_bias, value_bias) %>% 
+  summarize(perc_studies = length(each)/35)
 
 saveRDS(rob, paste0(processed, "rob.RDS"))
 
