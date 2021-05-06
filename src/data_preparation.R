@@ -6,6 +6,7 @@
 ## Output:
     ## 1) preprocessed data in data/temp/ folder for report "descriptives"
     ## 2) preprocessed data in data/processed/ folder for meta-analysis
+    ## 3) risk of bias assessment data
 
 ## Author: Valeria Bonapersona & Heike Schuler
 ## contact: v.bonapersona-2 (at) umcutrecht.nl
@@ -121,4 +122,15 @@ df_meta <-
 
 
 saveRDS(df_meta, paste0(processed, "meta.RDS"))
+
+
+
+# RoB ---------------------------------------------------------------------
+
+rob <- df_list[["Outcomes"]] %>% 
+  dplyr::select(each, starts_with("RB_")) %>% 
+  mutate(each = str_replace_all(each, "-.*", "")) %>% 
+  unique()
+
+saveRDS(rob, paste0(processed, "rob.RDS"))
 
