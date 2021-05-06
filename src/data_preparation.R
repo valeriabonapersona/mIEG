@@ -128,9 +128,14 @@ saveRDS(df_meta, paste0(processed, "meta.RDS"))
 # RoB ---------------------------------------------------------------------
 
 rob <- df_list[["Outcomes"]] %>% 
+  
+  # get information
   dplyr::select(each, starts_with("RB_")) %>% 
   mutate(each = str_replace_all(each, "-.*", "")) %>% 
-  unique()
+  unique() %>% 
+  
+  # transform to long
+  pivot_longer(cols = starts_with("RB_"), names_to = "type_bias", values_to = "value_bias")
 
 saveRDS(rob, paste0(processed, "rob.RDS"))
 
