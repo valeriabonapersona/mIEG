@@ -234,6 +234,57 @@ g_ba <- df_fig_ba %>%
 
 g_ba
 
+
+# Cartoon discussion ------------------------------------------------------
+discussion_a <- df_fig_main %>%
+  mutate(type = factor(type, levels = c("Baseline", "Acute stress"))) %>%
+  ggplot(aes(type, g)) + 
+  geom_bar(stat = "identity", fill = "white", colour = "black") + 
+  geom_errorbar(aes(ymin = g-sem, ymax = g+sem), width = 0.2) +
+  
+  # beautiful
+  theme_bw() + 
+  labs(x="", y = "Hedge's g") + 
+  facet_grid(~type, scales = "free_x") + 
+  theme(text = element_text(size = 20), 
+        axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5), 
+        legend.position = "none")
+
+df_discussion <- data.frame(
+  type = rep(c("Baseline", "Acute stress"), each = 4),
+  group = rep(c("Control", "ELA"), 4),
+  hit = rep(rep(c("no hit", "2nd hit"), each = 2),2),
+  g = c(1,4,3,5,9,8,10, 13),
+  sem = rep(0.5, 8)
+)
+
+
+df_discussion %>%
+  mutate(type = factor(type, levels = c("Baseline", "Acute stress"))) %>%
+  mutate(hit = factor(hit, levels = c("no hit", "2nd hit"))) %>%
+  mutate(
+    label = ifelse(type == "Acute stress" & hit == "no hit", "", "*"),
+    y_label = ifelse(type == "Acute stress", 14, 8)) %>%
+  
+  mutate(each_group = paste(group, hit, sep = "_")) %>%
+  ggplot(aes(hit, g, fill = group)) + 
+  geom_bar(stat = "identity", position = position_dodge(width=0.9), colour = "black") + 
+  geom_errorbar(aes(ymin = g-sem, ymax = g+sem), position =position_dodge(width=0.9), width = 0.2) +
+  
+  # beautiful
+  theme_bw() + 
+  labs(fill = "Exp group:",
+       y = "cFos expression",
+       x = "") +
+  
+  scale_fill_manual(values = c("white", "grey")) +
+  facet_grid(~type, scales = "free_x") + 
+  geom_text(aes(y = y_label, label = label), size = 20) + 
+  theme(text = element_text(size = 20), 
+        legend.position = "bottom",
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+
 # Sensitivity: Species ----------------------------------------------------
 # model compared to complete model
 mod_sens <- rma.mv(yi, vi, 
