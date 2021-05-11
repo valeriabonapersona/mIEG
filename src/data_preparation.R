@@ -43,10 +43,11 @@ df$areaLevel1[df$areaLevel1 %in% c('vCA1','vCA2','vCA3','vDG','dCA1','dCA2','dCA
   substring(df$areaLevel1[df$areaLevel1 %in% c('vCA1','vCA2','vCA3','vDG','dCA1','dCA2','dCA3','dDG')],2)
 
 # Meta-analytic filter in the end. 
+## @ HEIKE: does not work
 df_clean <- df %>%
 
   # select variables of interest
-  select(
+  dplyr::select(
     ID, nest, each, #id vars
     authors, year, #for labs
     species, strain, origin, sex, #animal info
@@ -133,13 +134,10 @@ rob <- df_list[["Outcomes"]] %>%
   dplyr::select(each, starts_with("RB_")) %>% 
   mutate(each = str_replace_all(each, "-.*", "")) %>% 
   unique() %>% 
+  filter(each %in% unique(df$ID)) %>%
   
   # transform to long
-  pivot_longer(cols = starts_with("RB_"), names_to = "type_bias", values_to = "value_bias") %>% 
-  
-  # calculate percentages
-  group_by(type_bias, value_bias) %>% 
-  summarize(perc_studies = length(each)/35)
+  pivot_longer(cols = starts_with("RB_"), names_to = "type_bias", values_to = "value_bias") 
 
 saveRDS(rob, paste0(processed, "rob.RDS"))
 
