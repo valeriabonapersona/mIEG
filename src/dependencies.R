@@ -18,7 +18,8 @@ list_cran_packages <- c(
   "metafor", # estimates and meta-analysis
   "BSDA", # t-test from summary statistics
   "multcomp", # contrasts with multiple testing correction
-  "ggplot2"
+  "ggplot2", 
+  "ggpubr" # to combine multiple plots
 )
 
 
