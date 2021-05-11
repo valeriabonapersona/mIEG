@@ -52,11 +52,19 @@ ggplot() +
 
 # STUDY CHARACTERISTICS PLOT ----------------------------------------------
 
+list(ls = rm())
+# @ heike - I did not understan what the levels of the first plot are, so I changed it
+
+pubs <- read_excel(paste0(raw,"outcomes.xlsx"), sheet = "Publications")
+exps <- read_excel(paste0(raw,"outcomes.xlsx"), sheet = "Experiments")
+outs <- read_excel(paste0(raw,"outcomes.xlsx"), sheet = "Outcomes")
+
 #Prepare labels.
 text_x    <- c('0','25','50','75','100')
 text_y    <- rev(c('Species','Sex','Model','2nd Hit',
                    'Stressor',
                    'IEG','Measure'))
+
 
 #SC plot data.
 SC <- data.frame(exps[match(outs$nest, exps$nest),], outs)
@@ -65,18 +73,22 @@ SC <- SC[,c(1,2,39,3,7,8,23,28,40,41,47)]
 SC[,c(seq(4,8))] <- lapply(SC[,c(seq(4,8))], as.factor)
 
 #animal
+SC$species[which(SC$species == "rats")] <- "rat"
 SC$species        <- factor(SC$species, levels = c('rat','mice'))
 SC$sex            <- factor(SC$sex, levels = c('M','F','P','NS'))
+
 #model
 SC$model          <- factor(SC$model, levels = c('MS','LG','LBN'))
 SC$hit2           <- factor(SC$hit2, levels = c('0','1'))
+
 #stressor
 SC$tAcuteStressor <- factor(SC$tAcuteStressor, levels = c('0','1'))
+
 #outcome
 SC$iegName[which(SC$iegName %in% c('Egr1','Egr2','Egr4'))] <- 'Egr'
 SC$iegName        <- factor(SC$iegName, levels = c('cFos','Arc','dFosB','Egr'))
 SC$outMeasure     <- factor(SC$outMeasure, levels = c('P','M'))
-SC$areaLevel2[which(SC$areaLevel2 %in% c('CB','CTX','HB','MB','STR'))] <- 'OTH'
+SC$areaLevel2[which(SC$areaLevel2 %in% c('CB','CTX','HB','MB','STR', 'PD'))] <- 'OTH'
 SC$areaLevel2     <- factor(SC$areaLevel2, levels = c('AMY','HPF','PFC','HYP','TH','OTH'))
 
 SC[,c(seq(4,11))] <- lapply(SC[,c(seq(4,11))], as.numeric)
@@ -86,7 +98,7 @@ SC <- melt(SC, id.vars = c('ID','nest','each'))
 
 SC_area <- SC[SC$variable == 'areaLevel2',]
 SC_area %>% count(variable,value) -> SC_area
-percent(SC_area$n/sum(SC_area$n))
+#percent(SC_area$n/sum(SC_area$n)) # does not work
 text = rev(c('Amygdala','Hippocampus','Medial PFC','Hypothalamus','Thalamus','Other'))
 
 ggplot(SC_area, aes(x = '', y = n, fill = forcats::fct_rev(as.factor(value))))+
@@ -136,13 +148,74 @@ ggplot() +
         legend.position = 'bottom',
         plot.margin = margin (1,1,1,1,'cm'))
 
+
 # SUMMARY SR --------------------------------------------------------------
+## Table with brain area groupings
+ba_grouped <- outs %>% 
+  
+  # get required info
+  dplyr::select(areaLevel2, areaPub) %>% 
+  rename(ba_grouped = areaLevel2, ba_publication = areaPub) %>% 
+  
+  # get unique
+  unique() %>% 
+  
+  # grouping as used in analysis
+  mutate(
+    ba_grouped = ifelse(ba_grouped %in% c('CB','CTX','HB','MB','STR', 'PD'), "Other", ba_grouped),
+    
+    ba_grouped = case_when(
+      ba_grouped %in% c('CB','CTX','HB','MB','STR', 'PD') ~ "Other",
+      
+      ba_grouped == "STR" ~ "Striatum", 
+      ba_grouped == "TH" ~ "Thalamus", 
+      ba_grouped == "PFC" ~ "Prefrontal cx", 
+      ba_grouped == "HYP" ~ "Hypothalamus", 
+      ba_grouped == "AMY" ~ "Amygdala",
+      ba_grouped == "HPF" ~ "Hippocampus",
+      TRUE ~ ba_grouped
+    )) %>% 
+  
+  # wide format
+  group_by(ba_grouped) %>%
+  summarize(ba_publication = paste(ba_publication, collapse = "; "))
 
-#ttests
+write.csv(ba_grouped, "results/ba_grouped.csv")
 
-#Prepare table for export (Word).
+
+# table acute stressors ---------------------------------------------------
+acute_stress_grouped <- exp %>% 
+  
+  # get required info
+  dplyr::select(contains("Stressor")) %>%
+  
+  unique() %>%
+  
+  # manual corrections heike
+  mutate(
+    tAcuteStressor = ifelse(tStressorType == "NA", 0, 1), 
+    stressor_intensity = case_when(
+      tStressorType %in% c('OFT','DLB','NE','EPM') ~ "mild", # @ heike --> shouldnt this be mild? >> below you had 1
+      tStressorType %in% c('CRD','FST','MWM','RS',
+                           'FS in inhibitory avoidance task',
+                           'Shock in shock-probe burial task') ~"severe", 
+      TRUE ~ "mild"
+    )
+  ) %>%
+  
+  # remove rest condition
+  filter(tAcuteStressor == 1) %>%
+  
+  # wide format
+  group_by(stressor_intensity) %>% 
+  summarize(stressor_type = paste(tStressorType, collapse = "; "))
+  
+  
+write.csv(acute_stress_grouped, "results/acute_stress_grouped.csv")
+
 
 # PREPARATION META --------------------------------------------------------
+# @ heike - I do not know what data_MA is, so I couldnt run it
 
 levels(factor(c(data_MA$varEtype,data_MA$varCtype))) # if NA, assumed SEM
 data_MA$sdC <- as.numeric(as.character(data_MA$varC)) * 
@@ -193,6 +266,9 @@ anova(mod_F, L = rbind(c(0.5,0,0.5,0,0),
                        c(0,0.5,0,0,0.5),
                        c(0,0,0,1,0)))
 
+# with V's processed data
+meta <- readRDS("~/surfdrive/Work/PhD/mELA/mIEG/mIEG/data/processed/meta.RDS")
+data_MA_M <- meta %>% filter(sex == "M")
 mod_M <- rma.mv(yi, vi, 
                 #subset = (areaLevel2 == 'AMY'),
                 random = list(~1 | each, ~1 | nest),
