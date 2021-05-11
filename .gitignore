@@ -27,4 +27,5 @@ data/processed/*
 docs/manuscript*
 results/figures/RDS/*
 results/figures/SVG/*
-
+results/*.csv
+results/output/*
