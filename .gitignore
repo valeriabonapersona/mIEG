@@ -5,6 +5,8 @@
 .Rproj.user
 .DS_Store
 .Rhistory
+src/.Rapp.history
+config/.Rapp.history
 
 # data files
 .RDS
@@ -20,3 +22,9 @@ data/processed/*
 !data/raw/.gitkeep 
 !data/temp/.gitkeep
 !data/processed/.gitkeep
+
+# remove manuscript files
+docs/manuscript*
+results/figures/RDS/*
+results/figures/SVG/*
+
