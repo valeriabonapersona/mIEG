@@ -117,7 +117,7 @@ df_meta <-
     sex %in% c("M", "F"),
     iegName == "cFos",
     meta == 1,
-    areaLevel2 %in% c('PFC','TH','HPF','HYP','AMY')
+    areaLevel2 %in% c('PFC','TH','HPF','HYP','AMY','MB')
   ) %>%
   ungroup() %>% droplevels()
 
