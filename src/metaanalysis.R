@@ -13,6 +13,19 @@
 source("src/utilities.R")
 df <- readRDS(paste0(processed, "meta.RDS"))
 
+# sys review
+length(unique(df$ID))
+
+df %>% 
+  mutate(sig = ifelse(p_val <= 0.05, "yes", "no")) %>% 
+  group_by(sig) %>% 
+  count()
+
+df %>% 
+  filter(sigEffect == 1) %>% 
+  mutate(pos = ifelse(yi > 0, "yes", "no")) %>% 
+  group_by(pos) %>% 
+  count()
 
 # Outliers ----------------------------------------------------------------
 # Create z-score variable.
@@ -26,12 +39,13 @@ res <- rma(yi, vi, measure="ZCOR", data=df_filtered)
 inf <- influence(res)
 df_filtered <- df_filtered[-which(inf$inf$inf == '*'),] %>%
   mutate(
-    tAcuteStressor = ifelse(tStressorType == "NA", 0, 1), 
+    tAcuteStressor = ifelse(tStressorType == "NA", 0, 1), # change 0 and 1 to acute and rest
     stressor_intensity = case_when(
-      tStressorType %in% c('OFT','DLB','NE','EPM') ~ "mild", # @ heike --> shouldnt this be mild? >> below you had 1
+      tStressorType %in% c('OFT','DLB','NE','EPM') ~ "mild",
       tStressorType %in% c('CRD','FST','MWM','RS',
                            'FS in inhibitory avoidance task',
                            'Shock in shock-probe burial task') ~"severe", 
+      tAcuteStressor == 0 ~ "not_applicable",
       TRUE ~ "mild"
     )
   )
@@ -72,7 +86,7 @@ for (area in unique(brainarea)) {
   contr_brainarea <- rbind(contr_brainarea, x)
 }
 
-anova(mod, L = contr_brainarea) 
+res_anova_ba <- anova(mod, L = contr_brainarea) 
 res_ba <- summary(glht(mod, linfct = contr_brainarea, df=df.residual(mod)), test = adjusted('holm'))
 
 # Subgroup: hit2 ----------------------------------------------------------
@@ -97,8 +111,10 @@ comparison_hit <- data.frame(estimate = c(coef(subgroup_hit0), coef(subgroup_hit
                              stderror = c(subgroup_hit0$se, subgroup_hit1$se),
                              meta = c(rep("hit0", length(subgroup_hit0$se)),
                                       rep("hit1", length(subgroup_hit1$se))), 
-                             stressor = c('BL','AS','BL','AS','BL','AS','AS','AS',
-                                          'BL','AS','BL','AS','BL','AS','BL','AS','BL','AS'),
+                             stressor = c('BL','AS','BL','AS','BL','AS','BL','AS','BL','AS','AS',
+                                          rep(c('BL', 'AS'), 6)),
+                             # stressor = c('BL','AS','BL','AS','BL','AS','AS','AS',
+                             #              'BL','AS','BL','AS','BL','AS','BL','AS','BL','AS'),
                              tau2 = c(rep(subgroup_hit0$tau2, length(subgroup_hit0$se)),
                                       rep(subgroup_hit1$tau2, length(subgroup_hit1$se))))
 
@@ -111,8 +127,9 @@ rma(estimate, sei=stderror, mods = ~ meta -1, method="FE", data=comparison_hit, 
 # meta-analyze interaction 2nd hit by stressor
 hit_mod <- rma(estimate, sei=stderror, mods = ~ meta:stressor -1, method="FE", data=comparison_hit, digits=3)
 
+p.adjust(hit_mod$pval, method = "holm", n = length(hit_mod$pval))
 
-
+ 
 # Exploratory: severity ----------------------------------------------------------
 df_filtered %>% 
   filter(tAcuteStressor == "1") %>%
@@ -145,11 +162,11 @@ g_main <- df_fig_main %>%
   geom_errorbar(aes(ymin = g-sem, ymax = g+sem), width = 0.2) +
   
   # beautiful
-  ylim(c(-0.2,1.1)) + 
+  ylim(c(-0.2,0.8)) + 
   theme_bw() + 
   labs(x="", y = "Hedge's g") + 
   facet_grid(~facet) + 
-  geom_text(x = "Baseline", y = max(df_fig_main$g) + 0.4, label = "*", size = 20) + 
+  geom_text(x = "Baseline", y = max(df_fig_main$g) + 0.2, label = "*", size = 20) + 
   geom_text(aes(y = 0.05, label = paste("n = ", n), size = 20)) + 
   theme(text = element_text(size = 20), 
         axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5), 
@@ -157,7 +174,7 @@ g_main <- df_fig_main %>%
 
 ## second hit
 df_fig_hit <- data.frame(
-  hit = c("no hit", "2nd hit", "no hit", "2nd hit"),
+  hit = rep(c("Single", "Multiple"),2),
   type = c("Acute stress", "Acute stress", "Baseline", "Baseline"), 
   g = hit_mod$b, 
   sem = hit_mod$se,
@@ -166,8 +183,9 @@ df_fig_hit <- data.frame(
 )
 
 g_hit <- df_fig_hit %>%
-  mutate(type = factor(type, levels = c("Baseline", "Acute stress"))) %>%
-  mutate(hit = factor(hit, levels = c("no hit", "2nd hit"))) %>%
+  mutate(type = ifelse(type == "Baseline", "At rest", "Acute stress")) %>%
+  mutate(type = factor(type, levels = c("At rest", "Acute stress"))) %>%
+  mutate(hit = factor(hit, levels = c("Single", "Multiple"))) %>%
     mutate(text = ifelse(pval < 0.05, "*", "")) %>%
     
   ggplot(aes(hit, g)) + 
@@ -176,7 +194,7 @@ g_hit <- df_fig_hit %>%
   facet_grid(~type) + 
   
   # beautiful
-  ylim(c(-0.3,1.3)) + 
+  ylim(c(-0.5,1)) + 
   theme_bw() + 
   labs(x="", y = "Hedge's g") + 
   geom_text(aes(label = text, y = g+0.3),  size = 20) + 
@@ -191,15 +209,17 @@ ggarrange(
   labels = c("A)", "B)")
 )
 
+ggsave(paste0(figs_svg, "main_res.svg"), width = 9, height = 5)
+
 ## brain area
 df_fig_ba <- data.frame(
-  ba = c("AMY", "HPF", "HYP", "AMY", "HPF", "HYP", "PFC", "TH", "PFC", "TH"),
-  type = c("Baseline", "Baseline", "Baseline", "Acute stress", "Acute stress", 
-           "Acute stress", "Acute stress","Acute stress", "Baseline", "Baseline"), 
+  ba = str_remove_all(res_anova_ba$hyp[,1], "\\:.*") %>% str_remove_all(".*2"),
+  type = str_remove_all(res_anova_ba$hyp[,1], ".*\\)") %>% str_remove_all("\\:.*"), 
   g = res_ba$test$coefficients, 
   sem = res_ba$test$sigma,
   pval = res_ba$test$pvalues
 ) %>% 
+  mutate(type = ifelse(type == "0", "Baseline", "Acute stress")) %>%
   left_join(
     df_filtered %>% 
       group_by(tAcuteStressor, areaLevel2) %>% 
@@ -210,13 +230,15 @@ df_fig_ba <- data.frame(
 
 g_ba <- df_fig_ba %>%
   mutate(
-    type = factor(type, levels = c("Baseline", "Acute stress")),
+    type = ifelse(type == "Baseline", "At rest", type),
+    type = factor(type, levels = c("At rest", "Acute stress")),
     ba = case_when(
       ba == "AMY" ~ "Amygdala", 
       ba == "PFC" ~ "Prefrontal cx", 
       ba == "HYP" ~ "Hypothalamus", 
       ba == "HPF" ~ "Hippocampus", 
-      ba == "TH" ~ "Thalamus"
+      ba == "TH" ~ "Thalamus", 
+      ba == "MB" ~ "Midbrain"
     )) %>%
   ggplot(aes(ba, g)) + 
   geom_bar(stat = "identity", fill = "white", colour = "black") + 
@@ -224,15 +246,17 @@ g_ba <- df_fig_ba %>%
   facet_grid(~type) + 
   
   # beautiful
-  ylim(c(-0.5,1.1)) + 
+  ylim(c(-0.6,1.1)) + 
   theme_bw() + 
   labs(x="", y = "Hedge's g") + 
-  geom_text(aes(y = -0.5, label = paste("n = ", n), size = 20)) + 
+  geom_text(aes(y = -0.6, label = paste("n = ", n), size = 20)) + 
   theme(text = element_text(size = 20),
         axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5),
         legend.position = "none")
 
 g_ba
+
+ggsave(paste0(figs_svg, "ba.svg"), width = 10, height = 5)
 
 
 # Cartoon discussion ------------------------------------------------------
@@ -254,17 +278,18 @@ df_discussion <- data.frame(
   type = rep(c("Baseline", "Acute stress"), each = 4),
   group = rep(c("Control", "ELA"), 4),
   hit = rep(rep(c("no hit", "2nd hit"), each = 2),2),
-  g = c(1,4,3,5,9,8,10, 13),
-  sem = rep(0.5, 8)
+  g = c(1,4,3,5,9,7,11, 15),
+  sem = c(rep(0.5, 4), rep(1.5,4))
 )
 
 
 df_discussion %>%
-  mutate(type = factor(type, levels = c("Baseline", "Acute stress"))) %>%
+  mutate(type = ifelse(type == "Baseline", "At rest", type)) %>%
+  mutate(type = factor(type, levels = c("At rest", "Acute stress"))) %>%
   mutate(hit = factor(hit, levels = c("no hit", "2nd hit"))) %>%
   mutate(
     label = ifelse(type == "Acute stress" & hit == "no hit", "", "*"),
-    y_label = ifelse(type == "Acute stress", 14, 8)) %>%
+    y_label = ifelse(type == "Acute stress", 16, 8)) %>%
   
   mutate(each_group = paste(group, hit, sep = "_")) %>%
   ggplot(aes(hit, g, fill = group)) + 
@@ -284,6 +309,8 @@ df_discussion %>%
         legend.position = "bottom",
         axis.text.y=element_blank(),
         axis.ticks.y=element_blank())
+
+ggsave(paste0(figs_svg, "discussion.svg"), width = 10, height = 6)
 
 # Sensitivity: Species ----------------------------------------------------
 # model compared to complete model
