@@ -12,4 +12,4 @@ raw <- "data/raw/"
 processed <- "data/processed/"
 temp <- "data/temp/"
 figs_rds <- "results/figures/RDS/"
-
+figs_svg <- "results/figures/SVG/"
