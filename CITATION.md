@@ -1,3 +1,3 @@
 Please cite this project as follows:
 
-Valeria Bonapersona (2020),  Meta-analysis on the effects of early life adversity on immediate early genes expression in the brain - version 0.1.0. url: github.com/valeriabonapersona/mIEG
+Schuler, H., Bonapersona, V., Joels, M., Sarabdjitsingh, R.A. (2021) Effects of early life adversity on immediate early gene expression: systematic review and 3-level meta-analysis of rodent studies. BiorXiv. doi: 10.1101/2021.06.07.447369
