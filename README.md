@@ -2,7 +2,7 @@
 
 Version 0.1.0
 
-Code accoompanying manuscript on the effects of early life adversity on immediate early genes expression in the brain.
+Code accompanying manuscript titled "Effects of early life adversity on immediate early gene expression: systematic review and 3-level meta-analysis of rodent studies", now available on biorXiv: https://doi.org/10.1101/2021.06.07.447369 . For additional information, see also the associated Open Science Framework page at https://osf.io/qkyvd/
 
 
 ## Project organization
