@@ -37,6 +37,7 @@ df_filtered <- df %>% filter(sex == "M")
 #Check for influential outliers and remove.
 res <- rma(yi, vi, measure="ZCOR", data=df_filtered)
 inf <- influence(res)
+outliers <- df_filtered[which(inf$inf$inf == '*'),]
 df_filtered <- df_filtered[-which(inf$inf$inf == '*'),] %>%
   mutate(
     tAcuteStressor = ifelse(tStressorType == "NA", 0, 1), # change 0 and 1 to acute and rest
@@ -130,6 +131,54 @@ hit_mod <- rma(estimate, sei=stderror, mods = ~ meta:stressor -1, method="FE", d
 p.adjust(hit_mod$pval, method = "holm", n = length(hit_mod$pval))
 
  
+
+# Sensitivity: species -----------------------------------------------------
+subgroup_rat <- rma.mv(yi, vi, 
+                        random = list(~1 | each, ~1 | nest),
+                        method = "REML",
+                        data = df_filtered,
+                        mods = ~ factor(tAcuteStressor):areaLevel2 -1,
+                        subset = (species=="rat"),
+                        slab = paste(authors, year, sep=", "))
+
+# summarize together
+comparison_species <- data.frame(estimate = c(coef(mod), coef(subgroup_rat)), 
+                              stderror = c(mod$se, subgroup_rat$se),
+                              sens = c(rep("all", length(mod$se)),
+                                       rep("rat_only", length(subgroup_rat$se))), 
+                              tau2 = c(rep(mod$tau2, length(mod$se)),
+                                       rep(subgroup_rat$tau2, length(subgroup_rat$se))))
+
+# meta-analyze with fixed effect
+rma(estimate, sei=stderror, mods = ~ sens -1, method="FE", data=comparison_species, digits=3)
+
+
+# Sensitivity: species only acute -----------------------------------------------------
+subgroup_rat_acute <- rma.mv(yi, vi, 
+                       random = list(~1 | each, ~1 | nest),
+                       method = "REML",
+                       data = df_filtered %>% filter(tAcuteStressor==1),
+                       mods = ~ areaLevel2 -1,
+                       subset = (species=="rat"),
+                       slab = paste(authors, year, sep=", "))
+acute <- rma.mv(yi, vi, 
+               random = list(~1 | each, ~1 | nest),
+               method = "REML",
+               data = df_filtered %>% filter(tAcuteStressor==1),
+               mods = ~ areaLevel2 -1,
+               slab = paste(authors, year, sep=", "))
+
+# summarize together
+comparison_species_acute <- data.frame(estimate = c(coef(acute), coef(subgroup_rat_acute)), 
+                                 stderror = c(acute$se, subgroup_rat_acute$se),
+                                 sens = c(rep("all", length(acute$se)),
+                                          rep("rat_only", length(subgroup_rat_acute$se))), 
+                                 tau2 = c(rep(acute$tau2, length(acute$se)),
+                                          rep(subgroup_rat_acute$tau2, length(subgroup_rat_acute$se))))
+
+# meta-analyze with fixed effect
+rma(estimate, sei=stderror, mods = ~ sens -1, method="FE", data=comparison_species_acute, digits=3)
+
 # Exploratory: severity ----------------------------------------------------------
 df_filtered %>% 
   filter(tAcuteStressor == "1") %>%
@@ -156,8 +205,8 @@ df_fig_main <- data.frame(
 )
 
 g_main <- df_fig_main %>%
-  mutate(type = factor(type, levels = c("Baseline", "Acute stress"))) %>%
-  ggplot(aes(type, g)) + 
+  mutate(type = ifelse(type == "Baseline", "At rest", "Acute stress")) %>%
+  mutate(type = factor(type, levels = c("At rest", "Acute stress"))) %>%  ggplot(aes(type, g)) + 
   geom_bar(stat = "identity", fill = "white", colour = "black") + 
   geom_errorbar(aes(ymin = g-sem, ymax = g+sem), width = 0.2) +
   
@@ -166,7 +215,7 @@ g_main <- df_fig_main %>%
   theme_bw() + 
   labs(x="", y = "Hedge's g") + 
   facet_grid(~facet) + 
-  geom_text(x = "Baseline", y = max(df_fig_main$g) + 0.2, label = "*", size = 20) + 
+  geom_text(x = "At rest", y = max(df_fig_main$g) + 0.2, label = "*", size = 20) + 
   geom_text(aes(y = 0.05, label = paste("n = ", n), size = 20)) + 
   theme(text = element_text(size = 20), 
         axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5), 
@@ -174,7 +223,7 @@ g_main <- df_fig_main %>%
 
 ## second hit
 df_fig_hit <- data.frame(
-  hit = rep(c("Single", "Multiple"),2),
+  hit = rep(c("No additional hits", "Additional hits"),2),
   type = c("Acute stress", "Acute stress", "Baseline", "Baseline"), 
   g = hit_mod$b, 
   sem = hit_mod$se,
@@ -185,7 +234,7 @@ df_fig_hit <- data.frame(
 g_hit <- df_fig_hit %>%
   mutate(type = ifelse(type == "Baseline", "At rest", "Acute stress")) %>%
   mutate(type = factor(type, levels = c("At rest", "Acute stress"))) %>%
-  mutate(hit = factor(hit, levels = c("Single", "Multiple"))) %>%
+  mutate(hit = factor(hit, levels = c("No additional hits", "Additional hits"))) %>%
     mutate(text = ifelse(pval < 0.05, "*", "")) %>%
     
   ggplot(aes(hit, g)) + 
@@ -209,7 +258,7 @@ ggarrange(
   labels = c("A)", "B)")
 )
 
-ggsave(paste0(figs_svg, "main_res.svg"), width = 9, height = 5)
+ggsave(paste0(figs_svg, "main_res.eps"), width = 9, height = 6)
 
 ## brain area
 df_fig_ba <- data.frame(
@@ -256,7 +305,7 @@ g_ba <- df_fig_ba %>%
 
 g_ba
 
-ggsave(paste0(figs_svg, "ba.svg"), width = 10, height = 5)
+ggsave(paste0(figs_svg, "ba.eps"), width = 10, height = 5)
 
 
 # Cartoon discussion ------------------------------------------------------
@@ -310,39 +359,45 @@ df_discussion %>%
         axis.text.y=element_blank(),
         axis.ticks.y=element_blank())
 
-ggsave(paste0(figs_svg, "discussion.svg"), width = 10, height = 6)
+ggsave(paste0(figs_svg, "discussion.eps"), width = 10, height = 6)
 
-# Sensitivity: Species ----------------------------------------------------
+# Sensitivity: RNA/protein ----------------------------------------------------
+df_filtered %>% 
+  group_by(outTechnique) %>% 
+  count()
+
 # model compared to complete model
 mod_sens <- rma.mv(yi, vi, 
                    random = list(~1 | each, ~1 | nest),
                    method = "REML",
                    data = df_filtered,
-                   subset = (species=='rat'),
-                   mods = ~ tAcuteStressor:areaLevel2 -1, 
+                   subset = (outTechnique=='IHC'),
+                   mods = ~ areaLevel2:factor(tAcuteStressor):hit2 -1, 
                    slab = paste(authors, year, sep=", "))
 
 # summarize together
 comparison_sens <- data.frame(estimate = c(coef(mod), coef(mod_sens)), 
                               stderror = c(mod$se, mod_sens$se),
                               sens = c(rep("all", length(mod$se)),
-                                       rep("wo_mice", length(mod_sens$se))), 
+                                       rep("IHC_only", length(mod_sens$se))), 
                               tau2 = c(rep(mod$tau2, length(mod$se)),
                                        rep(mod_sens$tau2, length(mod_sens$se))))
 
 # meta-analyze with fixed effect
 rma(estimate, sei=stderror, mods = ~ sens -1, method="FE", data=comparison_sens, digits=3)
 
-
-
 # Sensitivity: ELA model --------------------------------------------------
+df_filtered %>% 
+  group_by(model) %>% 
+  count()
+
 # model compared to complete model
 mod_sens <- rma.mv(yi, vi, 
                    random = list(~1 | each, ~1 | nest),
                    method = "REML",
                    data = df_filtered,
                    subset = (model=='MS'),
-                   mods = ~ tAcuteStressor:areaLevel2 -1, 
+                   mods = ~ areaLevel2:factor(tAcuteStressor):hit2 -1, 
                    slab = paste(authors, year, sep=", "))
 
 # summarize together
@@ -411,5 +466,105 @@ high_es <- c(26452320, 24513388)
 
 
 # Forest plot -------------------------------------------------------------
+## adapted from metafor tutorial
+### a little helper function to add Q-test, I^2, and tau^2 estimate info
+mlabfun <- function(text, res) {
+  list(bquote(paste(.(text),
+                    " (Q = ", .(formatC(res$QE, digits=2, format="f")),
+                    ", df = ", .(res$k - res$p),
+                    ", p ", .(metafor:::.pval(res$QEp, digits=2, showeq=TRUE, sep=" ")), "; ",
+                    I^2, " = ", .(formatC(res$I2, digits=1, format="f")), "%, ",
+                    tau^2, " = ", .(formatC(res$tau2, digits=2, format="f")), ")")))}
 
-forest(mod)
+df_filtered$stressor_intensity <- factor(df_filtered$stressor_intensity, levels=c('severe','mild','not_applicable'))
+df_filtered$species[df_filtered$ID == '29063642'] = 'rat'
+dat <- df_filtered %>% 
+  mutate(
+    acute_stressor = case_when(
+      str_detect(tStressorType, "FS") ~ "FS", 
+      str_detect(tStressorType, "Shock") ~ "Shock burial", 
+      tStressorType == "OFT" ~ "OF",
+      tStressorType == "NA" ~ "",
+      T ~ as.character(tStressorType)
+    ), 
+    hit2 = ifelse(hit2=="0", "no", "yes"),
+  ) %>%
+  arrange(species, model, stressor_intensity, hit2, desc(yi)) %>% 
+  mutate(my_order = row_number())
+  
+### set up forest plot (with 2x2 table counts added; the 'rows' argument is
+### used to specify in which rows the outcomes will be plotted)
+start = 3
+break_small_size = 3
+break_medium_size = 5
+break_large_size = 7
+
+# Mice
+break_1 <- dat %>% filter(species == 'mice' & model == 'LBN') %>% nrow() + start -1
+break_2 <- dat %>% filter(species == 'mice' & model == 'MS') %>% nrow() + break_1 + break_small_size -1
+
+# Rats
+break_3 <- dat %>% filter(species == 'rat' & model == 'LG') %>% nrow() + break_2 + break_large_size -1
+break_4 <- dat %>% filter(species == 'rat' & model == 'MS' & stressor_intensity == 'severe' & hit2 == 'no') %>% nrow() + break_3 + break_large_size -1
+break_5 <- dat %>% filter(species == 'rat' & model == 'MS' & stressor_intensity == 'severe' & hit2 == 'yes') %>% nrow() + break_4 + break_small_size -1
+break_6 <- dat %>% filter(species == 'rat' & model == 'MS' & stressor_intensity == 'mild' & hit2 == 'no') %>% nrow() + break_5 + break_medium_size -1
+break_7 <- dat %>% filter(species == 'rat' & model == 'MS' & stressor_intensity == 'mild' & hit2 == 'yes') %>% nrow() + break_6 + break_small_size -1
+break_8 <- dat %>% filter(species == 'rat' & model == 'MS' & stressor_intensity == 'not_applicable' & hit2 == 'no') %>% nrow() + break_7 + break_medium_size -1
+break_9 <- dat %>% filter(species == 'rat' & model == 'MS' & stressor_intensity == 'not_applicable' & hit2 == 'yes') %>% nrow() + break_8 + break_small_size -1
+
+end <- break_9 + 8
+
+mod <- rma.mv(yi, vi, 
+              random = list(~1 | each, ~1 | nest),
+              method = "REML",
+              data = dat,
+              
+              mods = ~ areaLevel2:factor(tAcuteStressor):hit2 -1, 
+              #   mods = ~ tAcuteStressor:areaLevel2 -1, 
+              slab = paste(authors, year, sep=", "))
+
+op <- par(cex=0.5, font=1)
+forest(mod, xlim=c(-12.5, 6), at=c(-4, -2, 0, 2, 4), 
+       #atransf=exp,
+       ilab=cbind(dat$model, dat$hit2, as.character(dat$acute_stressor), as.character(dat$areaLevel2)),
+       ilab.xpos=c(-9.5,-8,-6.5,-5), 
+       cex=1.8, ylim=c(-1, end),
+       order=dat$my_order, rows=c(start:break_1, #mouse LG mild nohit2
+                                  (break_1+break_small_size):break_2, # mouse MS rest nohit2
+                                  (break_2+break_large_size):break_3, # rats LG shock nohit2
+                                  (break_3+break_large_size):break_4,
+                                  (break_4+break_small_size):break_5,
+                                  (break_5+break_medium_size):break_6,
+                                  (break_6+break_small_size):break_7,
+                                  (break_7+break_medium_size):break_8,
+                                  (break_8+break_small_size):break_9),
+                                 
+       mlab=mlabfun("RE Model for All Studies", mod),
+       addfit=FALSE,
+       psize=1)
+
+### set font expansion factor (as in forest() above) and use a bold font
+op <- par(cex=1, font=2)
+
+### add additional column headings to the plot
+text(c(-12.5), (end), c("Author(s) and Year"), adj=0)
+text(c(-9.5,-8,-6.5,-5), (end), c("ELA model", "Additional hit", "Acute stress","Area"))
+text(-12.5, c(break_2+4, break_3+4, break_9+4), c("Mice", "Rats, other ELA", "Rats, MS"), adj=0)
+
+
+### set font expansion factor (as in forest() above) and use a bold font
+op <- par(cex=0.8, font=2)
+
+### add additional column headings to the plot
+text(-12.5, c(break_1+1.5, break_2+1.5), c("LBN in mice, mild stress, no additional hits", 
+                                       "MS in mice, at rest, no additional hits"), adj=0)
+text(-12.5, c(break_3+1.5), c("LG in rats, severe stress, no additional hits"),adj=0)
+text(-12.5, c(break_4+1.5,break_5+1.5), c("Severe stress, additional hits",
+                                      "Severe stress, no additional hits"),adj=0)
+text(-12.5, c(break_6+1.5,break_7+1.5), c("Mild stress, additional hits",
+                                          "Mild stress, no additional hits"),adj=0)
+text(-12.5, c(break_8+1.5,break_9+1.5), c("At rest, additional hits",
+                                          "At rest, no additional hits"),adj=0)
+
+
+## save width = 1800, height = 2400; save with cex = 0.5 for error bars

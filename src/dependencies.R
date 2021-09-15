@@ -19,7 +19,8 @@ list_cran_packages <- c(
   "BSDA", # t-test from summary statistics
   "multcomp", # contrasts with multiple testing correction
   "ggplot2", 
-  "ggpubr" # to combine multiple plots
+  "ggpubr",
+  "svglite"# to combine multiple plots
 )
 
 
